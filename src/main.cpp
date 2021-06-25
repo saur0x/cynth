@@ -1,8 +1,10 @@
 #include <cstdint>
 #include <iostream>
 #include <unordered_map>
+#include <atomic>
 #include <SDL2/SDL.h>
 
+#include "cynth/envelope.hpp"
 #include "cynth/wave.hpp"
 #include "audio/speaker.hpp"
 
@@ -10,7 +12,7 @@
 #define SDL_FAIL() { fprintf(stderr, "SDL error: %s", SDL_GetError()); }
 
 
-template<typename T = float>
+template<typename T>
 T clamp(T value, T min, T max)
 {
     if (value < min)
@@ -33,6 +35,7 @@ void make_noise(void *userdata, float *stream, int len)
 		float time = (float) SDL_GetTicks() / 1000.0f;
 		float wave = ((cynth::wave::Sine<> *) userdata)->oscillate(frequency, time);
 		wave *= amplitude;
+		wave *= 
 		stream[i] = wave;
 	}
 
@@ -48,12 +51,15 @@ void make_noise(void *userdata, float *stream, int len)
 class Player
 {
 	int sample_rate;
+	// float amplitude = 0.2;
+
+	std::atomic<float> frequency;
 	cynth::wave::Wave<>& wave;
-	float time;
-	float frequency;
-	float amplitude = 0.2;
 
 public:
+	float time;
+	cynth::EnvelopeADSR<> envelope;
+
 	Player(float frequency, int sample_rate, cynth::wave::Wave<>& wave)
 		: frequency(frequency), sample_rate(sample_rate), wave(wave), time(0.0)
 	{}
@@ -65,15 +71,19 @@ public:
 
 	void write_samples(float *stream, int len)
 	{
+		// float time = (float) SDL_GetTicks() / 1000.0f;
+		static float seconds_per_frame = 1.0 / sample_rate;
 
 		len /= sizeof(float);
-
-		// float time = (float) SDL_GetTicks() / 1000.0f;
-		float seconds_per_frame = 1.0 / sample_rate;
+		float amplitude;
 
 		for (size_t i = 0; i < len; ++i) {
 			float value = wave.oscillate(frequency, time);
+			value += wave.oscillate(frequency + 100.0, time);
+			value /= 2.0;
+			amplitude = envelope.get_amplitude(time);
 			value *= amplitude;
+			value *= 0.3;
 			stream[i] = value;
 			time += seconds_per_frame;
 		}
@@ -82,29 +92,12 @@ public:
 	static void callback(void *userdata, float *stream, int len)
 	{
 		((Player *) userdata)->write_samples(stream, len);
-
-		// static float frequency = 440.0;
-		// static float amplitude = 0.2;
-
-		// len /= sizeof(float);
-
-		// // float time = (float) SDL_GetTicks() / 1000.0f;
-		// float seconds_per_frame = 1.0 / self->sample_rate;
-		// float time = self->time;
-
-		// for (size_t i = 0; i < len; ++i) {
-		// 	float wave = self->wave.oscillate(frequency, time);
-		// 	wave *= amplitude;
-		// 	stream[i] = wave;
-		// 	time += seconds_per_frame;
-		// }
-
-		// self->time = time;
 	}
 };
 
 void show_keymap()
 {
+	puts("___________________________________________________________");
 	puts("|   |   |   |   |   | |   |   |   |   | |   | |   |   |   |");
 	puts("|   | S |   |   | F | | G |   |   | J | | K | | L |   |   |");
 	puts("|   |___|   |   |___| |___|   |   |___| |___| |___|   |   |__");
@@ -117,8 +110,8 @@ int main(int argc, char **argv)
 {
     SDL_Init(SDL_INIT_VIDEO | SDL_INIT_AUDIO);
 
-    // SDL begin
-    char window_title[] = "SDL Test";
+    // char window_title[] = "SDL Test";
+	std::string window_title = "SDL Test";
 
     if (SDL_Init(SDL_INIT_VIDEO) != 0)
     {
@@ -127,7 +120,7 @@ int main(int argc, char **argv)
     }
 
     SDL_Window *window = SDL_CreateWindow(
-		window_title, SDL_WINDOWPOS_UNDEFINED, SDL_WINDOWPOS_UNDEFINED,
+		window_title.c_str(), SDL_WINDOWPOS_UNDEFINED, SDL_WINDOWPOS_UNDEFINED,
 		800, 400, SDL_WINDOW_RESIZABLE
 	);
 
@@ -154,8 +147,6 @@ int main(int argc, char **argv)
 
 	// size_t buffer_s = 2048;
 	// float buffer[buffer_s];
-
-
 	// cynth::wave::Square<> sine;
 	// while (time < 3.0) {
 	// 	for (size_t i = 0; i < buffer_s; ++i) {
@@ -167,15 +158,10 @@ int main(int argc, char **argv)
 	// }
 
 	constexpr int samples = 1024;
-	cynth::wave::Square<> sine;
+	cynth::wave::Sine<> sine;
 	Player player(0.0, sample_rate, sine);
 
 	cynth::audio::Speaker<sample_rate> speaker((void *) Player::callback, samples, &player);
-
-	// for (int i = 0; i < 10; ++i) {
-	// 	speaker.pause(i % 2);
-	// 	SDL_Delay(100);
-	// }
 
 	constexpr float octave_base_frequency = 4.0 * 110.0f;
 	static float root_12_of_2 = powf(2.0f, 1.0f / 12.0f);
@@ -208,6 +194,7 @@ int main(int argc, char **argv)
 
 					keystate[key] = true;
 					player.set_frequency(octave_base_frequency * powf(root_12_of_2, keymap[key]));
+					player.envelope.note_on(player.time);
 					break;
 				}
 
@@ -217,7 +204,7 @@ int main(int argc, char **argv)
 						break;
 
 					keystate[key] = false;
-					player.set_frequency(0.0);
+					player.envelope.note_off(player.time);
 					break;
 				}
             }

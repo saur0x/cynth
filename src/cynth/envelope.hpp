@@ -19,8 +19,8 @@ namespace cynth
 
 	public:
 		EnvelopeADSR()
-			: attack_time(0.0), decay_time(0.0), release_time(0.0),
-			start_amplitude(0.0), sustain_amplitude(0.0), is_note_on(false)
+			: attack_time(0.01), decay_time(0.01), release_time(0.02),
+			start_amplitude(1.0), sustain_amplitude(0.8), is_note_on(false)
 		{}
 
 		void note_on(T time)
@@ -32,7 +32,7 @@ namespace cynth
 		void note_off(T time)
 		{
 			is_note_on = false;
-			on_time = time;
+			off_time = time;
 		}
 
 		T get_amplitude(T time)

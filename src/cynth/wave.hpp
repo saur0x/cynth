@@ -8,6 +8,13 @@ namespace cynth::wave
 		return 2.0 * PI * hertz;
 	}
 
+	template<typename T = float>
+	static inline T modulated_frequency(T frequency, T time, T LFOfrequency, T LFOamplitude)
+	{
+		return hertz_to_omega(frequency) * time
+			+ LFOamplitude * frequency * sin(hertz_to_omega(LFOfrequency) * time);
+	}
+
 	enum class WaveType : uint8_t {
 		Sine, Square, Triangle, Sawtooth, SawtoothAnalog, Noise
 	};
@@ -26,9 +33,13 @@ namespace cynth::wave
 	class Sine : public Wave<T>
 	{
 	public:
-		T oscillate(T frequency, T time)
+		T oscillate(T frequency, T time, T LFOfrequency = 0.0, T LFOamplitude = 0.0)
 		{
-			float sine_wave = sinf(2.0 * PI * frequency * time);
+			// float sine_wave = sinf(
+			// 	hertz_to_omega(frequency) * time
+			// 	+ 0.01 * frequency * sinf(hertz_to_omega(5.0) * time));
+			float sine_wave = sin(modulated_frequency(frequency, time, LFOfrequency, LFOamplitude));
+			std::cout << sine_wave << std::endl;
 			return sine_wave;
 		}
 	};
@@ -37,9 +48,10 @@ namespace cynth::wave
 	class Square : public Wave<T>
 	{
 	public:
-		T oscillate(T frequency, T time)
+		T oscillate(T frequency, T time, T LFOfrequency = 0.0, T LFOamplitude = 0.0)
 		{
-			float sine_wave = sinf(hertz_to_omega(frequency) * time);
+			// float sine_wave = sinf(hertz_to_omega(frequency) * time);
+			float sine_wave = sin(modulated_frequency(frequency, time, LFOfrequency, LFOamplitude));
 			return (sine_wave >= 0.0) ? 1.0 : -1.0;
 		}
 	};
@@ -48,10 +60,11 @@ namespace cynth::wave
 	class Triangle : public Wave<T>
 	{
 	public:
-		T oscillate(T frequency, T time)
+		T oscillate(T frequency, T time, T LFOfrequency = 0.0, T LFOamplitude = 0.0)
 		{
-			float sine_wave = sinf(2.0 * PI * frequency * time);
-			return asinf(sine_wave) * 2.0 / PI;
+			// float sine_wave = sinf(2.0 * PI * frequency * time);
+			float sine_wave = sin(modulated_frequency(frequency, time, LFOfrequency, LFOamplitude));
+			return asinf(sine_wave) * (2.0 / PI);
 		}
 	};
 
@@ -59,7 +72,7 @@ namespace cynth::wave
 	class Sawtooth : public Wave<T>
 	{
 	public:
-		T oscillate(T frequency, T time)
+		T oscillate(T frequency, T time, T LFOfrequency = 0.0, T LFOamplitude = 0.0)
 		{
 			return 2.0 / PI * (frequency * PI * fmod(time, 1.0 / frequency) - (PI / 2.0));
 		}
@@ -69,15 +82,19 @@ namespace cynth::wave
 	class SawtoothAnalog : public Wave<T>
 	{
 	public:
-		T oscillate(T frequency, T time)
+		T oscillate(T frequency, T time, T LFOfrequency = 0.0, T LFOamplitude = 0.0)
 		{
 			static const float sawtooth_analog_iterations = 100.0;
-			float sine_wave = sinf(2.0 * PI * frequency * time);
+			float output = 0.0;
+		
+			// for (float i = 1.0; i < sawtooth_analog_iterations; ++i)
+			// 	sine_wave += sinf(i * hertz_to_omega(frequency) * time) / i;
 
-			for (float i = 2.0; i < sawtooth_analog_iterations; ++i)
-				sine_wave += sinf(i * 2.0 * PI * frequency * time) / i;
+			float mfrequency = modulated_frequency(frequency, time, LFOfrequency, LFOamplitude);
+			for (float i = 1.0; i < sawtooth_analog_iterations; ++i)
+				output += sinf(i * mfrequency) / i;
 
-			return sine_wave;
+			return output;
 		}
 	};
 

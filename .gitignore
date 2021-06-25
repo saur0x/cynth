@@ -1,0 +1,7 @@
+archive/
+build/
+lib/
+tutorials/
+
+*.mid
+*.midi

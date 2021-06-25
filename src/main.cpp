@@ -1,151 +1,150 @@
 #include <cstdint>
 #include <iostream>
+#include <unordered_map>
 #include <SDL2/SDL.h>
+
+#include "cynth/wave.hpp"
+#include "audio/speaker.hpp"
+
 
 #define SDL_FAIL() { fprintf(stderr, "SDL error: %s", SDL_GetError()); }
 
-constexpr float PI = 3.1415926535f;
 
-
-template<int sample_rate = 44100>
-class Speaker
+template<typename T = float>
+T clamp(T value, T min, T max)
 {
-    SDL_AudioDeviceID device;
-    SDL_AudioSpec specification;
+    if (value < min)
+        return min;
+    else if (value > max)
+        return max;
+    else
+        return value;
+}
+
+/// Returns a value in range (-1.0 to +1.0) as a function of time.
+void make_noise(void *userdata, float *stream, int len)
+{
+	static float frequency = 440.0;
+	static float amplitude = 0.2;
+
+	len /= sizeof(float);
+
+	for (size_t i = 0; i < len; ++i) {
+		float time = (float) SDL_GetTicks() / 1000.0f;
+		float wave = ((cynth::wave::Sine<> *) userdata)->oscillate(frequency, time);
+		wave *= amplitude;
+		stream[i] = wave;
+	}
+
+    // float amplitude = envelope_ADSR_get_amplitude(&envelope, time);
+    // float wave =
+    //     1.0f * oscillate((float) atomic_frequency * 0.5f, time, SAWTOOTH_DIGITAL_WAVE)
+    //     + 1.0f * oscillate((float) atomic_frequency, time, SAWTOOTH_DIGITAL_WAVE);
+    // float sound = amplitude * wave;
+    // // printf("%f %f %f\n", amplitude, wave, sound);
+    // return clamp(sound * 0.4, -1.0f, 1.0f);
+}
+
+class Player
+{
+	int sample_rate;
+	cynth::wave::Wave<>& wave;
+	float time;
+	float frequency;
+	float amplitude = 0.2;
 
 public:
-	Speaker()
+	Player(float frequency, int sample_rate, cynth::wave::Wave<>& wave)
+		: frequency(frequency), sample_rate(sample_rate), wave(wave), time(0.0)
+	{}
+
+	void set_frequency(float frequency)
 	{
-		SDL_zero(specification);
-
-		specification.freq = sample_rate;
-		specification.format = AUDIO_F32;
-		specification.channels = 1;
-		specification.samples = 1024;
-		specification.callback = NULL;
-
-		if (!(device = SDL_OpenAudioDevice(NULL, 0, &specification, NULL, 0)));
+		this->frequency = frequency;
 	}
 
-	~Speaker()
+	void write_samples(float *stream, int len)
 	{
+
+		len /= sizeof(float);
+
+		// float time = (float) SDL_GetTicks() / 1000.0f;
+		float seconds_per_frame = 1.0 / sample_rate;
+
+		for (size_t i = 0; i < len; ++i) {
+			float value = wave.oscillate(frequency, time);
+			value *= amplitude;
+			stream[i] = value;
+			time += seconds_per_frame;
+		}
 	}
 
-	void close()
+	static void callback(void *userdata, float *stream, int len)
 	{
-		SDL_CloseAudioDevice(device);
-	}
+		((Player *) userdata)->write_samples(stream, len);
 
-	void queue(const void *data, Uint32 len)
-	{
-        SDL_QueueAudio(device, data, len * sizeof(float));
-	}
+		// static float frequency = 440.0;
+		// static float amplitude = 0.2;
 
-	void play()
-	{
-		SDL_PauseAudioDevice(device, 0);
-	}
+		// len /= sizeof(float);
 
-	void pause(bool pause_on = true)
-	{
-		SDL_PauseAudioDevice(device, pause_on);
+		// // float time = (float) SDL_GetTicks() / 1000.0f;
+		// float seconds_per_frame = 1.0 / self->sample_rate;
+		// float time = self->time;
+
+		// for (size_t i = 0; i < len; ++i) {
+		// 	float wave = self->wave.oscillate(frequency, time);
+		// 	wave *= amplitude;
+		// 	stream[i] = wave;
+		// 	time += seconds_per_frame;
+		// }
+
+		// self->time = time;
 	}
 };
 
-
-namespace cynth
+void show_keymap()
 {
-	/// Attack, decay, sustain, release
-	template<typename T = float>
-	class EnvelopeADSR
-	{
-	private:
-		T attack_time;
-		T decay_time;
-		T release_time;
-
-		T start_amplitude;
-		T sustain_amplitude;
-
-		T on_time;
-		T off_time;
-
-		bool is_note_on;
-
-	public:
-		EnvelopeADSR()
-			: attack_time(0.0), decay_time(0.0), release_time(0.0),
-			start_amplitude(0.0), sustain_amplitude(0.0), is_note_on(false)
-		{}
-
-		void note_on(T time)
-		{
-			is_note_on = true;
-			on_time = time;
-		}
-
-		void note_off(T time)
-		{
-			is_note_on = false;
-			on_time = time;
-		}
-
-		T get_amplitude(T time)
-		{
-			T amplitude = 0.0;
-			T life_time = time - on_time;
-
-			if (is_note_on) {
-				if (life_time <= attack_time) {
-					amplitude = life_time / attack_time * start_amplitude;
-				} else if (life_time <= attack_time + decay_time) {
-					amplitude = start_amplitude
-						- ((life_time - attack_time) / decay_time)
-						* (start_amplitude - sustain_amplitude);
-				} else {
-					amplitude = sustain_amplitude;
-				}
-			} else {
-				amplitude = sustain_amplitude
-					- ((time - off_time) / release_time) * sustain_amplitude;
-			}
-
-			// Amplitude should not be negative
-			if (amplitude <= 0.0001)
-				amplitude = 0.0;
-
-			return amplitude;
-		}
-	};
-
-	template<typename T = float>
-	class Wave
-	{
-	public:
-		virtual T oscillate(T time, T frequency);
-	};
-
-	template<typename T = float>
-	class SineWave : public Wave<T>
-	{
-	public:
-		T oscillate(T time, T frequency)
-		{
-			return 0.2f * sinf(2.0f * PI * frequency * time);
-		}
-	};
-
-	// enum class Wave : uint8_t {
-	// 	Sine, Square, Triangle, Sawtooth, SawtoothAnalog, Noise
-	// };
+	puts("|   |   |   |   |   | |   |   |   |   | |   | |   |   |   |");
+	puts("|   | S |   |   | F | | G |   |   | J | | K | | L |   |   |");
+	puts("|   |___|   |   |___| |___|   |   |___| |___| |___|   |   |__");
+	puts("|     |     |     |     |     |     |     |     |     |     |");
+	puts("|  Z  |  X  |  C  |  V  |  B  |  N  |  M  |  ,  |  .  |  /  |");
+	puts("|_____|_____|_____|_____|_____|_____|_____|_____|_____|_____|");
 }
 
 int main(int argc, char **argv)
 {
-    SDL_Init(SDL_INIT_AUDIO);
+    SDL_Init(SDL_INIT_VIDEO | SDL_INIT_AUDIO);
 
+    // SDL begin
+    char window_title[] = "SDL Test";
+
+    if (SDL_Init(SDL_INIT_VIDEO) != 0)
+    {
+        printf("ERROR: Couldn't initialize SDL.\n%s\n", SDL_GetError());
+        return 1;
+    }
+
+    SDL_Window *window = SDL_CreateWindow(
+		window_title, SDL_WINDOWPOS_UNDEFINED, SDL_WINDOWPOS_UNDEFINED,
+		800, 400, SDL_WINDOW_RESIZABLE
+	);
+
+    if (window == NULL)
+    {
+        printf("SDL couldn't create the specified window.\n");
+        return 1;
+    }
+
+    SDL_Renderer *renderer = SDL_CreateRenderer(window, -1, 0);
+    SDL_Event event;
+    int running = 1;
+
+	constexpr float PI = 3.1415926535f;
 	constexpr int sample_rate = 44100;
-	Speaker<sample_rate> speaker;
+	// cynth::audio::Speaker<sample_rate> speaker;
+
 
 	float frequency = 440.0f;
 
@@ -153,26 +152,82 @@ int main(int argc, char **argv)
 	float play_time = 3.0;
 	float time = 0.0;
 
-	size_t buffer_s = 2048;
-	float buffer[buffer_s];
+	// size_t buffer_s = 2048;
+	// float buffer[buffer_s];
 
-	cynth::SineWave<> sine;
 
-	while (time < 3.0) {
-		for (size_t i = 0; i < buffer_s; ++i) {
-			buffer[i] = sine.oscillate(time, frequency);
-			time += seconds_per_frame;
-		}
+	// cynth::wave::Square<> sine;
+	// while (time < 3.0) {
+	// 	for (size_t i = 0; i < buffer_s; ++i) {
+	// 		buffer[i] = 0.1 * sine.oscillate(frequency, time);
+	// 		time += seconds_per_frame;
+	// 	}
 
-		speaker.queue(buffer, buffer_s);
+	// 	speaker.queue(buffer, buffer_s);
+	// }
+
+	constexpr int samples = 1024;
+	cynth::wave::Square<> sine;
+	Player player(0.0, sample_rate, sine);
+
+	cynth::audio::Speaker<sample_rate> speaker((void *) Player::callback, samples, &player);
+
+	// for (int i = 0; i < 10; ++i) {
+	// 	speaker.pause(i % 2);
+	// 	SDL_Delay(100);
+	// }
+
+	constexpr float octave_base_frequency = 4.0 * 110.0f;
+	static float root_12_of_2 = powf(2.0f, 1.0f / 12.0f);
+
+	std::string keys("zsxcfvgbnjmk,l./");
+	std::unordered_map<char, int> keymap;
+	for (int i = 0; i < keys.size(); ++i) {
+		keymap[keys[i]] = i;
 	}
 
+	std::unordered_map<char, bool> keystate;
+	for (auto c : keys) {
+		keystate[c] = false;
+	}
+
+	show_keymap();
 	speaker.play();
 
-    SDL_Delay(play_time * 1000);
+    while (running) {
+        while (SDL_PollEvent(&event) > 0) {
+            switch (event.type) {
+				case SDL_QUIT:
+					running = 0;
+					break;
+
+				case SDL_KEYDOWN: {
+					char key = (char) event.key.keysym.sym;
+					if (keystate.find(key) == keystate.end() || keystate[key])
+						break;
+
+					keystate[key] = true;
+					player.set_frequency(octave_base_frequency * powf(root_12_of_2, keymap[key]));
+					break;
+				}
+
+				case SDL_KEYUP: {
+					char key = (char) event.key.keysym.sym;
+					if (keystate.find(key) == keystate.end() || !keystate[key])
+						break;
+
+					keystate[key] = false;
+					player.set_frequency(0.0);
+					break;
+				}
+            }
+        }
+
+        SDL_RenderPresent(renderer);
+    }
 
 	speaker.close();
-
+    SDL_DestroyWindow(window);
     SDL_Quit();
 
 	return 0;

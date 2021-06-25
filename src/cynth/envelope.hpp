@@ -4,7 +4,7 @@ namespace cynth
 	template<typename T = float>
 	class EnvelopeADSR
 	{
-	private:
+	public:
 		T attack_time;
 		T decay_time;
 		T release_time;
@@ -19,7 +19,7 @@ namespace cynth
 
 	public:
 		EnvelopeADSR()
-			: attack_time(0.01), decay_time(0.01), release_time(0.02),
+			: attack_time(0.1), decay_time(0.01), release_time(0.02),
 			start_amplitude(1.0), sustain_amplitude(0.8), is_note_on(false)
 		{}
 

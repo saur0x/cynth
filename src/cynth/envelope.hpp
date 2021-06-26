@@ -1,8 +1,14 @@
-namespace cynth
+namespace cynth::envelope
 {
-	/// Attack, decay, sustain, release
 	template<typename T = float>
-	class EnvelopeADSR
+	struct Envelope
+	{
+		virtual T amplitude(T time, T on_time, T off_time) = 0;
+	};
+
+	/// FIXED: Releasing the key while it's still in attack phase.
+	template<typename T = float>
+	class ADSR : public Envelope<T>
 	{
 	public:
 		T attack_time;
@@ -11,52 +17,37 @@ namespace cynth
 
 		T start_amplitude;
 		T sustain_amplitude;
-
-		T on_time;
-		T off_time;
-
-		bool is_note_on;
-
-	public:
-		EnvelopeADSR()
-			: attack_time(0.1), decay_time(0.01), release_time(0.02),
-			start_amplitude(1.0), sustain_amplitude(0.8), is_note_on(false)
-		{}
-
-		void note_on(T time)
+	
+		ADSR()
 		{
-			is_note_on = true;
-			on_time = time;
+			attack_time = 0.1;
+			decay_time = 0.1;
+			release_time = 0.2;
+			start_amplitude = 1.0;
+			sustain_amplitude = 1.0;
 		}
 
-		void note_off(T time)
-		{
-			is_note_on = false;
-			off_time = time;
-		}
-
-		T get_amplitude(T time)
+		virtual T amplitude(T time, T on_time, T off_time)
 		{
 			T amplitude = 0.0;
-			T life_time = time - on_time;
+			T life_time = (on_time > off_time) ? time - on_time : off_time - on_time;
 
-			if (is_note_on) {
-				if (life_time <= attack_time) {
-					amplitude = life_time / attack_time * start_amplitude;
-				} else if (life_time <= attack_time + decay_time) {
-					amplitude = start_amplitude
-						- ((life_time - attack_time) / decay_time)
-						* (start_amplitude - sustain_amplitude);
-				} else {
-					amplitude = sustain_amplitude;
-				}
-			} else {
-				amplitude = sustain_amplitude
-					- ((time - off_time) / release_time) * sustain_amplitude;
-			}
+			// Common case for both note on and note off
+			if (life_time <= attack_time)
+				amplitude = life_time / attack_time * start_amplitude;
+			else if (life_time <= attack_time + decay_time)
+				amplitude = start_amplitude
+					- ((life_time - attack_time) / decay_time)
+					* (start_amplitude - sustain_amplitude);
+			else
+				amplitude = sustain_amplitude;
+			
+			// Note is off
+			if (on_time <= off_time)
+				amplitude = ((time - off_time) / release_time) * -amplitude + amplitude;
 
 			// Amplitude should not be negative
-			if (amplitude <= 0.0001)
+			if (amplitude <= 0.00001)
 				amplitude = 0.0;
 
 			return amplitude;

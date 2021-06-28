@@ -25,7 +25,7 @@
 
 ## Resources
 - <https://stackoverflow.com/questions/8777724/store-derived-class-objects-in-base-class-variables>
-- [Add](https://theorie.ikp.physik.tu-darmstadt.de/qcd/moore/ph224/notes/lecture14.pdf)
+- [Add Waves](https://theorie.ikp.physik.tu-darmstadt.de/qcd/moore/ph224/notes/lecture14.pdf)
 
 ## References
 - [LIVESTREAM: Real-time audio programming in C++ from first principles](https://youtu.be/HVkcdhqWp5s "@Bartholomew")

@@ -9,7 +9,8 @@ namespace cynth
 		default:
 		case 0:
 			// return 256.0 * pow(1.0594630943592952645618252949463, note_id);
-			return 440.0 * pow(1.0594630943592952645618252949463, note_id);
+			// return 440.0 * pow(1.0594630943592952645618252949463, note_id);
+			return 27.500 * powf(1.0594630943592952645618252949463, note_id);
 		}
 	}
 }
@@ -83,6 +84,38 @@ namespace cynth::instrument
 			T value = square.oscillate(cynth::scale(note.id), time - note.on_time, 5.0, 0.001)
 				+ 0.5 * square.oscillate(cynth::scale(note.id + 12), time - note.on_time)
 				+ 0.05 * noise.oscillate(cynth::scale(note.id + 24), time - note.on_time);
+
+			return this->volume * amplitude * value;
+		}
+	};
+
+	template<typename T = float>
+	struct Piano : public Instrument<T>
+	{
+		Piano()
+		{
+			this->envelope.attack_time = 0.1;
+			this->envelope.decay_time = 0.3;
+			this->envelope.release_time = 0.2;
+
+			this->envelope.start_amplitude = 1.0;
+			this->envelope.sustain_amplitude = 0.8;
+
+			this->volume = 1.0;
+		}
+
+		T sound(cynth::Note<T>& note, T time, bool& note_finished) override
+		{
+			T amplitude = this->envelope.amplitude(time, note.on_time, note.off_time);
+
+			if (amplitude <= 0.0)
+				note_finished = true;
+
+			static cynth::wave::Sine<T> sine;
+
+			T value = sine.oscillate(cynth::scale(note.id), time - note.on_time, 5.0, 0.001)
+				+ 0.5 * sine.oscillate(cynth::scale(note.id >= 12 ? note.id - 12 : note.id), time - note.on_time)
+				+ 0.25 * sine.oscillate(cynth::scale(note.id + 12 < 88 ? note.id + 12 : note.id), time - note.on_time);
 
 			return this->volume * amplitude * value;
 		}

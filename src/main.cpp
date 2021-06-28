@@ -1,17 +1,14 @@
 #include <cstdint>
 #include <iostream>
-#include <unordered_map>
 #include <atomic>
 #include <mutex>
 #include <vector>
-#include <chrono>
 #include <algorithm>
 #include <memory>
 
 #include <SDL2/SDL.h>
 
 #define CYNTH_T float
-
 
 #include "cynth/envelope.hpp"
 #include "cynth/wave.hpp"
@@ -22,13 +19,8 @@
 
 #define SDL_FAIL() { fprintf(stderr, "SDL error: %s", SDL_GetError()); }
 
+
 std::mutex notes_mutex;
-
-
-float envelope_amplitude(float time, cynth::envelope::Envelope<>& envelope, float on_time, float off_time)
-{
-	return envelope.amplitude(time, on_time, off_time);
-}
 
 
 template<typename T>
@@ -43,44 +35,37 @@ T clamp(T value, T min, T max)
 }
 
 
-// typedef bool(*lambda)(synth::note const& item);
-template<class T>
-void safe_remove(T &v, bool (*f)(cynth::Note<> const&))
+template<typename T, typename F>
+static inline void erase_if(T &vector, F fn)
 {
-	auto n = v.begin();
-	while (n != v.end())
-		if (!f(*n))
-			n = v.erase(n);
+	for (auto i = vector.begin(); i != vector.end();) {
+		if (fn(*i))
+			i = vector.erase(i);
 		else
-			++n;
+			++i;
+	}
 }
 
 
 class Player
 {
 	int sample_rate;
-	std::atomic<float> frequency;
-	// std::vector<cynth::instrument::Instrument<>>& instruments;
 	std::vector<std::unique_ptr<cynth::instrument::Instrument<>>>& instruments;
 
 public:
 	float time;
 	std::vector<cynth::Note<>> notes;
 
-	Player(float frequency, int sample_rate, std::vector<std::unique_ptr<cynth::instrument::Instrument<>>>& instruments)
-		: frequency(frequency), sample_rate(sample_rate), instruments(instruments), time(0.0)
-	{}
-
-	void set_frequency(float frequency)
+	Player(int sample_rate, std::vector<std::unique_ptr<cynth::instrument::Instrument<>>>& instruments)
+		: instruments(instruments)
 	{
-		this->frequency = frequency;
+		this->sample_rate = sample_rate;
+		this->time = 0.0;
 	}
 
 	void write_samples(float *stream, int len)
 	{
 		std::unique_lock<std::mutex> lm(notes_mutex);
-
-		// float time = (float) SDL_GetTicks() / 1000.0f;
 
 		static float seconds_per_frame = 1.0 / sample_rate;
 		len /= sizeof(float);
@@ -99,22 +84,12 @@ public:
 			}
 
 			// if (notes.size()) value /= notes.size();
-			value = clamp<float>(value, -1.0, 1.0);
-
+			// value = clamp<float>(value, -1.0, 1.0);
 			// stream[i] = 0.2 * value;
+
 			stream[i] = value;
 			time += seconds_per_frame;
-
-			for (auto i = notes.begin(); i != notes.end();) {
-				if (!(*i).active)
-					notes.erase(i);
-				else
-					++i;
-			}
-
-			// Woah! Modern C++ Overload!!!
-			// safe_remove<std::vector<cynth::Note<>>>(notes, [](cynth::Note<> const& note) { return note.active; });
-
+			erase_if(notes, [](cynth::Note<> const& note) { return !note.active; });
 		}
 	}
 
@@ -123,6 +98,7 @@ public:
 		((Player *) userdata)->write_samples(stream, len);
 	}
 };
+
 
 void show_keymap()
 {
@@ -135,11 +111,11 @@ void show_keymap()
 	puts("|_____|_____|_____|_____|_____|_____|_____|_____|_____|_____|");
 }
 
+
 int main(int argc, char **argv)
 {
     SDL_Init(SDL_INIT_VIDEO | SDL_INIT_AUDIO);
 
-    // char window_title[] = "SDL Test";
 	std::string window_title = "SDL Test";
 
     if (SDL_Init(SDL_INIT_VIDEO) != 0)
@@ -163,22 +139,18 @@ int main(int argc, char **argv)
     SDL_Event event;
     int running = 1;
 
-	std::vector<std::unique_ptr<cynth::instrument::Instrument<>>> instruments;
-	instruments.emplace_back(std::make_unique<cynth::instrument::Harmonica<>>());
-	instruments.emplace_back(std::make_unique<cynth::instrument::Bell<>>());
-
 	constexpr int samples = 1024;
 	constexpr int sample_rate = 44100;
 
-	Player player(0.0, sample_rate, instruments);
+	std::vector<std::unique_ptr<cynth::instrument::Instrument<>>> instruments;
+	instruments.emplace_back(std::make_unique<cynth::instrument::Piano<>>());
+	instruments.emplace_back(std::make_unique<cynth::instrument::Bell<>>());
+	instruments.emplace_back(std::make_unique<cynth::instrument::Harmonica<>>());
 
-	cynth::audio::Speaker<sample_rate> speaker((void *) Player::callback, samples, &player);
+	Player player(sample_rate, instruments);
+	cynth::audio::Speaker speaker(sample_rate, (void *) Player::callback, samples, &player);
 
 	std::string keys("zsxcfvgbnjmk,l./");
-
-	// auto clock_old_time = std::chrono::high_resolution_clock::now();
-	// auto clock_real_time = std::chrono::high_resolution_clock::now();
-	// double dElapsedTime = 0.0;
 
 	show_keymap();
 	speaker.play();
@@ -190,7 +162,6 @@ int main(int argc, char **argv)
 					running = 0;
 					break;
 				}
-
 				case SDL_KEYDOWN: {
 					// Check if note already exists in currently playing notes
 					char key = (char) event.key.keysym.sym;
@@ -224,7 +195,6 @@ int main(int argc, char **argv)
 					notes_mutex.unlock();
 					break;
 				}
-
 				case SDL_KEYUP: {
 					char key = (char) event.key.keysym.sym;
 					int index = keys.find(key);

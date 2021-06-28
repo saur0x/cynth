@@ -1,27 +1,12 @@
 namespace cynth::audio
 {
-	template<int sample_rate = 44100>
 	class Speaker
 	{
 		SDL_AudioDeviceID device;
 		SDL_AudioSpec specification;
 
 	public:
-		Speaker()
-		{
-			SDL_zero(specification);
-
-			specification.freq = sample_rate;
-			specification.format = AUDIO_F32;
-			specification.channels = 1;
-			specification.samples = 1024;
-			specification.callback = NULL;
-
-			if (!(device = SDL_OpenAudioDevice(NULL, 0, &specification, NULL, 0)));
-		}
-
-		// Speaker(SDL_AudioCallback callback, uint16_t samples, void *userdata)
-		Speaker(void *callback, uint16_t samples, void *userdata)
+		Speaker(int sample_rate = 44100, uint16_t samples = 256, void *callback = NULL, void *userdata = NULL)
 		{
 			SDL_zero(specification);
 
@@ -32,11 +17,17 @@ namespace cynth::audio
 			specification.callback = (SDL_AudioCallback) callback;
 			specification.userdata = userdata;
 
-			if (!(device = SDL_OpenAudioDevice(NULL, 0, &specification, NULL, 0)));
+			device = SDL_OpenAudioDevice(NULL, 0, &specification, NULL, 0);
+
+			if (!device) {
+				fprintf(stderr, "Couldn't open audio: %s\n", SDL_GetError());
+				exit(-1);
+			}
 		}
 
 		~Speaker()
 		{
+			close();
 		}
 
 		void close()

@@ -1,21 +1,18 @@
-namespace cynth::envelope
+#ifndef CYNTH_ENVELOPE_H
+#define CYNTH_ENVELOPE_H
+
+
+namespace cynth
 {
-	template<typename T = float>
-	struct Envelope
+	struct ADSR
 	{
-		virtual T amplitude(T time, T on_time, T off_time) = 0;
-	};
+		float attack_time;
+		float decay_time;
+		float release_time;
 
-	template<typename T = float>
-	struct ADSR : public Envelope<T>
-	{
-		T attack_time;
-		T decay_time;
-		T release_time;
+		float start_amplitude;
+		float sustain_amplitude;
 
-		T start_amplitude;
-		T sustain_amplitude;
-	
 		ADSR()
 		{
 			attack_time = 0.1;
@@ -25,10 +22,10 @@ namespace cynth::envelope
 			sustain_amplitude = 1.0;
 		}
 
-		T amplitude(T time, T on_time, T off_time) override
+		float amplitude(float time, float on_time, float off_time)
 		{
-			T current_amplitude = 0.0;
-			T life_time = (on_time > off_time) ? time - on_time : off_time - on_time;
+			float current_amplitude = 0.0;
+			float life_time = (on_time > off_time) ? time - on_time : off_time - on_time;
 
 			// Common case for both note on and note off
 			if (life_time <= attack_time)
@@ -39,7 +36,7 @@ namespace cynth::envelope
 					* (start_amplitude - sustain_amplitude);
 			else
 				current_amplitude = sustain_amplitude;
-			
+
 			// Note is off
 			if (on_time <= off_time)
 				current_amplitude = ((time - off_time) / release_time) * -current_amplitude + current_amplitude;
@@ -52,3 +49,6 @@ namespace cynth::envelope
 		}
 	};
 }
+
+
+#endif /* CYNTH_ENVELOPE_H */

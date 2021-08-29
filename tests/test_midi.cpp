@@ -8,36 +8,22 @@
 
 #include <SDL2/SDL.h>
 
-#define CYNTH_T float
 
-#include "cynth/envelope.hpp"
-#include "cynth/wave.hpp"
-#include "cynth/note.hpp"
-#include "cynth/instrument.hpp"
-#include "audio/speaker.hpp"
-#include "audio/player.hpp"
-
-// #include <stdio.h>
-// #include <stdint.h>
+#include "envelope.hpp"
+#include "wave.hpp"
+#include "note.hpp"
+#include "instrument.hpp"
+#include "speaker.hpp"
+#include "player.hpp"
 
 #include <unistd.h>
-
-// #include <errno.h>
-// #include <fcntl.h>
-// #include <termios.h>
-// #include <stdlib.h>
-
-#include "midi_parser.h"
+#include "midi_parser/midi_parser.h"
 
 
 #define REAL_TIME
-// #define SHOW_KEYBOARD
-
 
 
 std::mutex notes_mutex;
-
-
 
 
 void show_keyboard(uint8_t *notes, size_t size, FILE *output)
@@ -68,13 +54,13 @@ int main(int argc, char **argv)
 	constexpr int samples = 256;
 	constexpr int sample_rate = 44100;
 
-	std::vector<std::unique_ptr<cynth::instrument::Instrument<>>> instruments;
-	instruments.emplace_back(std::make_unique<cynth::instrument::Piano<>>());
-	instruments.emplace_back(std::make_unique<cynth::instrument::Harmonica<>>());
-	instruments.emplace_back(std::make_unique<cynth::instrument::Bell<>>());
+	std::vector<std::unique_ptr<cynth::Instrument>> instruments;
+	instruments.emplace_back(std::make_unique<cynth::Piano>());
+	instruments.emplace_back(std::make_unique<cynth::Harmonica>());
+	instruments.emplace_back(std::make_unique<cynth::Bell>());
 
-	cynth::audio::Player player(sample_rate, instruments, notes_mutex);
-	cynth::audio::Speaker speaker(sample_rate, samples, (void *) cynth::audio::Player::callback, &player);
+	cynth::Player player(sample_rate, instruments, notes_mutex);
+	cynth::Speaker speaker(sample_rate, samples, (void *) cynth::Player::callback, &player);
 
 	struct midi_parser *parser = midi_parser_new(NULL, midi);
 	struct midi_event event;
@@ -94,20 +80,20 @@ int main(int argc, char **argv)
 
 				notes_mutex.lock();
 
-				std::vector<cynth::Note<>>& notes = player.notes;
+				std::vector<cynth::Note>& notes = player.notes;
 
 				auto note_found = std::find_if(notes.begin(), notes.end(),
-					[&index](cynth::Note<> const& note) { return note.id == index; });
-				
+					[&index](cynth::Note const& note) { return note.id == index; });
+
 				if (event_on) {
 					if (note_found == notes.end()) {
-						cynth::Note<> new_note;
+						cynth::Note new_note;
 						new_note.id = index;
 						new_note.on_time = player.time;
 						new_note.channel = 0;
 						new_note.active = true;
 
-						player.notes.emplace_back(new_note);						
+						player.notes.emplace_back(new_note);
 					} else if (note_found->off_time > note_found->on_time) {
 						note_found->on_time = player.time;
 						note_found->active = true;
@@ -129,10 +115,10 @@ int main(int argc, char **argv)
 
 				notes_mutex.lock();
 
-				std::vector<cynth::Note<>>& notes = player.notes;
+				std::vector<cynth::Note>& notes = player.notes;
 
 				auto note_found = std::find_if(notes.begin(), notes.end(),
-					[&index](cynth::Note<> const& note) { return note.id == index; });
+					[&index](cynth::Note const& note) { return note.id == index; });
 
 				if (note_found != notes.end() && note_found->off_time < note_found->on_time) {
 					note_found->off_time = player.time;

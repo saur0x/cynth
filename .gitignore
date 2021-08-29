@@ -1,7 +1,7 @@
-archive/
-build/
-lib/
-tutorials/
+/archive
+/build
+/lib
+/data
 
 *.mid
 *.midi

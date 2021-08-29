@@ -1,3 +1,14 @@
+#ifndef CYNTH_PLAYER_H
+#define CYNTH_PLAYER_H
+
+
+#include "instrument.hpp"
+#include "note.hpp"
+#include <memory>
+#include <vector>
+#include <mutex>
+
+
 namespace cynth::utils
 {
 	template<typename T>
@@ -23,21 +34,23 @@ namespace cynth::utils
 	}
 }
 
-namespace cynth::audio
+namespace cynth
 {
+	using InstrumentVector = std::vector<std::unique_ptr<Instrument>>;
+
 	class Player
 	{
 		int sample_rate;
-		std::vector<std::unique_ptr<cynth::instrument::Instrument<>>>& instruments;
+		InstrumentVector& instruments;
 
 	public:
 		float time;
-		std::vector<cynth::Note<>> notes;
+		std::vector<Note> notes;
 		std::mutex &notes_mutex;
 
 		Player(
 			int sample_rate,
-			std::vector<std::unique_ptr<cynth::instrument::Instrument<>>>& instruments,
+			InstrumentVector& instruments,
 			std::mutex &notes_mutex)
 			: instruments(instruments), notes_mutex(notes_mutex)
 		{
@@ -58,7 +71,7 @@ namespace cynth::audio
 				for (auto& note : notes) {
 					bool note_finished = false;
 
-					std::unique_ptr<cynth::instrument::Instrument<>>& instrument = instruments[note.channel];
+					std::unique_ptr<Instrument>& instrument = instruments[note.channel];
 					value += instrument->sound(note, time, note_finished);
 
 					if (note_finished && note.off_time > note.on_time)
@@ -70,7 +83,7 @@ namespace cynth::audio
 
 				stream[i] = value;
 				time += seconds_per_frame;
-				cynth::utils::erase_if(notes, [](cynth::Note<> const& note) { return !note.active; });
+				cynth::utils::erase_if(notes, [](Note const& note) { return !note.active; });
 			}
 		}
 
@@ -80,3 +93,6 @@ namespace cynth::audio
 		}
 	};
 }
+
+
+#endif /* CYNTH_PLAYER_H */

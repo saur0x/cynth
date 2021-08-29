@@ -174,7 +174,7 @@ int main(int argc, char **argv)
 
 					auto note_found = std::find_if(notes.begin(), notes.end(),
 						[&index](cynth::Note<> const& note) { return note.id == index; });
-					
+
 					// Note not found in vector
 					if (note_found == notes.end()) {
 						// Key has been pressed so create a new note

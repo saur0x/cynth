@@ -1,4 +1,12 @@
-namespace cynth::audio
+#ifndef CYNTH_SPEAKER_H
+#define CYNTH_SPEAKER_H
+
+
+#include <SDL2/SDL.h>
+#include <iostream>
+
+
+namespace cynth
 {
 	class Speaker
 	{
@@ -20,7 +28,7 @@ namespace cynth::audio
 			device = SDL_OpenAudioDevice(NULL, 0, &specification, NULL, 0);
 
 			if (!device) {
-				fprintf(stderr, "Couldn't open audio: %s\n", SDL_GetError());
+				std::cerr << "Couldn't open audio: " << SDL_GetError() << std::endl;
 				exit(-1);
 			}
 		}
@@ -51,3 +59,6 @@ namespace cynth::audio
 		}
 	};
 }
+
+
+#endif /* CYNTH_SPEAKER_H */

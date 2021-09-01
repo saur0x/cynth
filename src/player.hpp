@@ -69,10 +69,12 @@ namespace cynth
 				float value = 0.0;
 
 				for (auto& note : notes) {
+					if (!note.active)
+						continue;
+
 					bool note_finished = false;
 
-					std::unique_ptr<Instrument>& instrument = instruments[note.channel];
-					value += instrument->sound(note, time, note_finished);
+					value += instruments[note.channel]->sound(note, time, note_finished);
 
 					if (note_finished && note.off_time > note.on_time)
 						note.active = false;
@@ -83,8 +85,9 @@ namespace cynth
 
 				stream[i] = value;
 				time += seconds_per_frame;
-				cynth::utils::erase_if(notes, [](Note const& note) { return !note.active; });
 			}
+
+			cynth::utils::erase_if(notes, [](Note const& note) { return !note.active; });
 		}
 
 		static inline void callback(void *userdata, float *stream, int len)

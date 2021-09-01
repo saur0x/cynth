@@ -56,8 +56,8 @@ int main(int argc, char **argv)
 
 	std::vector<std::unique_ptr<cynth::Instrument>> instruments;
 	instruments.emplace_back(std::make_unique<cynth::Piano>());
-	instruments.emplace_back(std::make_unique<cynth::Harmonica>());
-	instruments.emplace_back(std::make_unique<cynth::Bell>());
+	// instruments.emplace_back(std::make_unique<cynth::Harmonica>());
+	// instruments.emplace_back(std::make_unique<cynth::Bell>());
 
 	cynth::Player player(sample_rate, instruments, notes_mutex);
 	cynth::Speaker speaker(sample_rate, samples, (void *) cynth::Player::callback, &player);

@@ -30,8 +30,8 @@ namespace cynth
 		{
 			// pow(2.0, 1.0 / 12.0) = 1.059...
 			// 256.0, 440.0
-			static const float mul = 27.5f;
-			return mul * std::pow(1.0594630943592952645618252949463f, id + offset);
+			static const float scale_coefficient = 27.5f;
+			return scale_coefficient * std::pow(1.0594630943592952645618252949463f, id + offset);
 		}
 	};
 }

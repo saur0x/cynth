@@ -9,22 +9,6 @@
 
 namespace cynth
 {
-	float scale(int note_id, int scale_id = 0)
-	{
-		static float scale_coefficient = 27.500;
-
-		// static float root_12_of_2 = powf(2.0f, 1.0f / 12.0f);
-		switch (scale_id) {
-		default:
-		case 0:
-			return scale_coefficient * powf(1.0594630943592952645618252949463f, note_id);
-		}
-	}
-}
-
-
-namespace cynth
-{
 	struct Instrument
 	{
 		float volume;
@@ -54,10 +38,11 @@ namespace cynth
 				note_finished = true;
 
 			static cynth::Sine sine;
+			float time_elapsed = time - note.on_time;
 
-			float value = sine.oscillate(cynth::scale(note.id + 12), time - note.on_time, 5.0, 0.001)
-				+ 0.5 * sine.oscillate(cynth::scale(note.id + 24), time - note.on_time)
-				+ 0.25 * sine.oscillate(cynth::scale(note.id + 36), time - note.on_time);
+			float value = sine.oscillate(note.frequency(12), time_elapsed, 5.0, 0.001)
+				+ 0.5 * sine.oscillate(note.frequency(24), time_elapsed)
+				+ 0.25 * sine.oscillate(note.frequency(36), time_elapsed);
 
 			return this->volume * amplitude * value;
 		}
@@ -85,9 +70,10 @@ namespace cynth
 
 			static cynth::Square square;
 			static cynth::Noise noise;
+			float time_elapsed = time - note.on_time;
 
-			float value = square.oscillate(cynth::scale(note.id), time - note.on_time, 5.0, 0.001)
-				+ 0.5 * square.oscillate(cynth::scale(note.id + 12), time - note.on_time)
+			float value = square.oscillate(note.frequency(), time_elapsed, 5.0, 0.001)
+				+ 0.5 * square.oscillate(note.frequency(12), time_elapsed)
 				+ 0.05 * noise.oscillate();
 
 			return this->volume * amplitude * value;
@@ -116,10 +102,11 @@ namespace cynth
 				note_finished = true;
 
 			static cynth::Sine sine;
+			float time_elapsed = time - note.on_time;
 
-			float value = sine.oscillate(cynth::scale(note.id), time - note.on_time, 5.0, 0.001)
-				+ 0.5 * sine.oscillate(cynth::scale(note.id >= 12 ? note.id - 12 : note.id), time - note.on_time)
-				+ 0.25 * sine.oscillate(cynth::scale(note.id + 12 < 88 ? note.id + 12 : note.id), time - note.on_time);
+			float value = sine.oscillate(note.frequency(), time_elapsed, 5.0, 0.001)
+				+ 0.5 * sine.oscillate(note.frequency(note.id >= 12 ? -12 : 0), time_elapsed)
+				+ 0.25 * sine.oscillate(note.frequency(note.id + 12 < 88 ? 12 : 0), time_elapsed);
 
 			return this->volume * amplitude * value;
 		}
